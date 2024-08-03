@@ -71,20 +71,17 @@ def get_duration(file_path):
 
 def trim_media(input_file, duration, output_file):
     """Trim video file to the specified duration with optimized speed, no audio processing."""
-    (
-        ffmpeg
-        .input(input_file, t=duration)
-        .output(
-            output_file, 
-            vcodec='libx264',  # H.264 encoding using CPU
-            an=None,  # Disable audio
-            preset='slow', 
-            crf=18, 
-            loglevel='error'
-        )
-        .global_args('-hide_banner')
-        .run(overwrite_output=True, capture_stdout=True, capture_stderr=True)
-    )
+    ffmpeg.input(input_file, t=duration).output(            
+            output_file,
+            cq=18,
+            preset='slow',
+            rc='vbr',
+            b='5M',
+            maxrate='10M',
+            an=None,
+            vf='crop=ih*(9/16):ih',
+            vcodec='libx264'  # Optional: use GPU acceleration with NVIDIA encoder
+        ).run(overwrite_output=True)
 
 
 
@@ -127,19 +124,23 @@ def combine_audio_video(number):
         audio = ffmpeg.input(input_audio)
         video = ffmpeg.input(input_video)
 
-        ffmpeg.output(audio, video, f'withaudio/xd_{number:03}.mp4',
-              vcodec='libx264',  # H.264 using NVIDIA GPU
-              video_bitrate='8M',   # Increased video bitrate
-              acodec='aac',
-              audio_bitrate='256k', # Higher audio bitrate
-              preset='slow',        # Slower preset for better compression
-              maxrate='12M',
-              bufsize='16M',
-              **{'b:v': '8M', 'minrate': '6M', 'rc:v': 'vbr', 'cq': '23',
-                 'profile:v': 'high', 'pix_fmt': 'yuv420p',  # 8-bit color
-                 'ac': '2', 'ar': '48000'  # Audio channels and sample rate
-                }
-             ).run(overwrite_output=True)
+        (
+        ffmpeg
+        .output(video, audio, f'withaudio/xd_{number:03}.mp4',
+                vcodec='libx264',   # Use NVIDIA GPU acceleration for H.264 encoding
+                video_bitrate='8M',    # Target video bitrate (adjust as needed)
+                acodec='aac',          # AAC audio codec
+                audio_bitrate='256k',  # High audio bitrate for better quality
+                preset='slow',         # Slow preset for better quality compression
+                maxrate='12M',         # Maximum video bitrate
+                minrate='4M',          # Minimum video bitrate to maintain quality
+                bufsize='16M',         # Buffer size for bitrate control
+                cq=18,                 # Constant Quality mode (lower value for higher quality)
+                loglevel='error'       # Reduce verbosity of logs
+               )
+        .global_args('-hide_banner')  # Hide banner information
+        .run(overwrite_output=True)
+    )
         
     
     except Exception as e:
